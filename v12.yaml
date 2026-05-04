@@ -14,20 +14,6 @@ objects:
     name: ${NAME}
   spec:
     runStrategy: Manual
-    dataVolumeTemplates:
-    - metadata:
-        name: ${NAME}-rootdisk
-      spec:
-        pvc:
-          accessModes:
-            - ReadWriteOnce
-          storageClassName: gp3
-          resources:
-            requests:
-              storage: 40Gi
-        source:
-          registry:
-            url: docker://quay.io/mylastres0rt05_redhat/camoufox-containerdisk:lab
     template:
       spec:
         domain:
@@ -51,8 +37,9 @@ objects:
           pod: {}
         volumes:
         - name: rootdisk
-          dataVolume:
-            name: ${NAME}-rootdisk
+          containerDisk:
+            image: quay.io/mylastres0rt05_redhat/camoufox-containerdisk:lab
+            imagePullPolicy: Always
         - name: cloudinitdisk
           cloudInitNoCloud:
             userData: |
