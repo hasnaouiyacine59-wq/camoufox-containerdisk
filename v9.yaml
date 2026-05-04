@@ -1,0 +1,102 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: camoufox-stable-v9
+parameters:
+  - name: NAME
+    value: camoufox-vm
+  - name: PASSWORD
+    value: ubuntu123
+objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: ${NAME}-data
+  spec:
+    accessModes:
+      - ReadWriteMany
+    storageClassName: efs-sc
+    resources:
+      requests:
+        storage: 40Gi
+- apiVersion: kubevirt.io/v1
+  kind: VirtualMachine
+  metadata:
+    name: ${NAME}
+  spec:
+    runStrategy: Always
+    dataVolumeTemplates:
+    - metadata:
+        name: ${NAME}-root
+      spec:
+        source:
+          registry:
+            url: docker://quay.io/containerdisks/ubuntu:22.04
+        pvc:
+          accessModes:
+            - ReadWriteMany
+          storageClassName: efs-sc
+          resources:
+            requests:
+              storage: 20Gi
+    template:
+      spec:
+        domain:
+          cpu:
+            cores: 2
+          memory:
+            guest: 4Gi
+          devices:
+            disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: datadisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+            interfaces:
+            - name: default
+              masquerade: {}
+        networks:
+        - name: default
+          pod: {}
+        volumes:
+        - name: rootdisk
+          dataVolume:
+            name: ${NAME}-root
+        - name: datadisk
+          persistentVolumeClaim:
+            claimName: ${NAME}-data
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              user: ubuntu
+              password: ${PASSWORD}
+              chpasswd: {expire: False}
+              ssh_pwauth: true
+              runcmd:
+                - |
+                  exec > /var/log/boot.log 2>&1
+                  m=/mnt/pvc
+                  mkdir -p $m
+                  blkid /dev/vdb || mkfs.ext4 /dev/vdb
+                  grep -q /dev/vdb /etc/fstab || echo "/dev/vdb $m ext4 defaults 0 2" >> /etc/fstab
+                  mountpoint -q $m || mount /dev/vdb $m
+                  mkdir -p $m/dk $m/ac
+                  [ -L /var/lib/docker ] || (rm -rf /var/lib/docker && ln -s $m/dk /var/lib/docker)
+                  [ -L /var/cache/apt ] || (rm -rf /var/cache/apt && ln -s $m/ac /var/cache/apt)
+                  ip link set dev enp1s0 mtu 1350
+                  if ! command -v docker &>/dev/null; then
+                    apt-get update && apt-get install -y docker.io nordvpn
+                    mkdir -p /etc/docker
+                    printf '{"data-root":"/var/lib/docker","exec-opts":["native.cgroupdriver=cgroupfs"],"storage-driver":"overlay2"}' > /etc/docker/daemon.json
+                    systemctl daemon-reload
+                    systemctl enable nordvpnd containerd docker
+                  fi
+                  systemctl start nordvpnd containerd docker
+                  nordvpn set technology openvpn && nordvpn set protocol tcp
+                  nordvpn set ipv6 off && nordvpn whitelist add port 22

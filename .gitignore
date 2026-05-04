@@ -1,0 +1,10 @@
+*.img
+*.qcow2
+*.tar
+*.customized
+*.resized
+work.img
+rootfs.tar
+Dockerfile.rootfs
+Dockerfile.disk
+last_session

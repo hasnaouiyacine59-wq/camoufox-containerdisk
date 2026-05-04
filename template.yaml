@@ -1,0 +1,106 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: camoufox-stable-v7
+
+parameters:
+  - name: NAME
+    value: camoufox-vm
+
+objects:
+
+# -------------------------
+# PVC 40GB (PERSISTENT)
+# -------------------------
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: ${NAME}-data
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 40Gi
+
+# -------------------------
+# VM
+# -------------------------
+- apiVersion: kubevirt.io/v1
+  kind: VirtualMachine
+  metadata:
+    name: ${NAME}
+
+  spec:
+    runStrategy: Always
+
+    template:
+      metadata:
+        labels:
+          kubevirt.io/domain: ${NAME}
+
+      spec:
+
+        domain:
+          cpu:
+            cores: 2
+
+          memory:
+            guest: 4Gi
+
+          devices:
+            disks:
+              - name: rootdisk
+                disk:
+                  bus: virtio
+
+              - name: datadisk
+                disk:
+                  bus: virtio
+
+              - name: cloudinitdisk
+                disk:
+                  bus: virtio
+
+            interfaces:
+              - name: defaultnet
+                masquerade: {}
+
+        networks:
+          - name: defaultnet
+            pod: {}
+
+        volumes:
+
+          - name: rootdisk
+            containerDisk:
+              image: quay.io/containerdisks/ubuntu:22.04
+
+          - name: datadisk
+            persistentVolumeClaim:
+              claimName: ${NAME}-data
+
+          - name: cloudinitdisk
+            cloudInitNoCloud:
+              userData: |
+                #cloud-config
+
+                user: ubuntu
+
+                ssh_pwauth: true
+
+                runcmd:
+                  - |
+                    exec > /var/log/bootstrap.log 2>&1
+
+                    echo "[*] Boot OK"
+
+                    for i in $(seq 1 20); do
+                      ping -c1 8.8.8.8 && break
+                      sleep 2
+                    done
+
+                    mkdir -p /mnt/pvc
+                    mount /dev/vdb /mnt/pvc || true
+
+                    echo "[*] DONE"
