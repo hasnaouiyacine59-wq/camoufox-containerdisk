@@ -1,0 +1,82 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: camoufox-stable-v12
+parameters:
+  - name: NAME
+    value: camoufox-vm
+  - name: PASSWORD
+    value: ubuntu123
+objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: ${NAME}-data
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: gp3
+    resources:
+      requests:
+        storage: 40Gi
+- apiVersion: kubevirt.io/v1
+  kind: VirtualMachine
+  metadata:
+    name: ${NAME}
+  spec:
+    runStrategy: Manual
+    dataVolumeTemplates:
+    - metadata:
+        name: ${NAME}-rootdisk
+      spec:
+        pvc:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: gp3
+          resources:
+            requests:
+              storage: 40Gi
+        source:
+          registry:
+            url: docker://quay.io/mylastres0rt05_redhat/camoufox-containerdisk:lab
+    template:
+      spec:
+        domain:
+          cpu:
+            cores: 2
+          memory:
+            guest: 4Gi
+          devices:
+            disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: datadisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+            interfaces:
+            - name: default
+              masquerade: {}
+        networks:
+        - name: default
+          pod: {}
+        volumes:
+        - name: rootdisk
+          dataVolume:
+            name: ${NAME}-rootdisk
+        - name: datadisk
+          persistentVolumeClaim:
+            claimName: ${NAME}-data
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              user: ubuntu
+              password: ${PASSWORD}
+              chpasswd: {expire: False}
+              ssh_pwauth: true
+              runcmd:
+                - curl -fsSL https://raw.githubusercontent.com/hasnaouiyacine59-wq/camoufox-vm-boot/main/boot.sh | bash
