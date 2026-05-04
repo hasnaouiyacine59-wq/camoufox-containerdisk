@@ -25,23 +25,34 @@ echo "==> Customizing image with guestfish (no KVM required)..."
 if [[ ! -f "${BASE_IMG_RESIZED}.customized" ]]; then
   cp "$BASE_IMG_RESIZED" work.img
 
-  # Write config files into the image
-  guestfish --rw -a work.img -i <<'GUESTFISH'
-# Grow partition to fill disk
+  guestfish --rw -a work.img <<'EOF'
+run
+mount /dev/sda1 /
 resize2fs /dev/sda1
-
-# Docker daemon config
 mkdir-p /etc/docker
 write /etc/docker/daemon.json {"data-root": "/mnt/data/docker"}
+write /etc/systemd/system/docker-data-mount.service "[Unit]
+Description=Ensure Docker data dir
+Before=docker.service
+After=local-fs.target
 
-# docker-data-mount systemd unit
-write /etc/systemd/system/docker-data-mount.service [Unit]\nDescription=Ensure Docker data dir on PVC\nBefore=docker.service\nAfter=local-fs.target\n\n[Service]\nType=oneshot\nExecStart=/bin/bash -c "mkdir -p /mnt/data/docker"\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target
+[Service]
+Type=oneshot
+ExecStart=/bin/mkdir -p /mnt/data/docker
+RemainAfterExit=yes
 
-# cloud-init script to install docker + openvpn on first boot
-write /var/lib/cloud/scripts/per-once/install-packages.sh #!/bin/bash\nset -e\napt-get update\napt-get install -y docker.io openvpn\nsystemctl enable docker docker-data-mount.service
-
+[Install]
+WantedBy=multi-user.target
+"
+mkdir-p /var/lib/cloud/scripts/per-once
+write /var/lib/cloud/scripts/per-once/install-packages.sh "#!/bin/bash
+set -e
+apt-get update
+apt-get install -y docker.io openvpn
+systemctl enable docker docker-data-mount.service
+"
 chmod 0755 /var/lib/cloud/scripts/per-once/install-packages.sh
-GUESTFISH
+EOF
 
   mv work.img "$BASE_IMG"
   touch "${BASE_IMG_RESIZED}.customized"
