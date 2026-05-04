@@ -21,28 +21,17 @@ else
   echo "    skipped (base-resized.img already exists)"
 fi
 
-echo "==> Customizing image with qemu-nbd and chroot..."
+echo "==> Customizing image with virt-customize..."
 if [[ ! -f "${BASE_IMG_RESIZED}.customized" ]]; then
   cp "$BASE_IMG_RESIZED" work.img
 
-  sudo modprobe nbd max_part=8
-  sudo qemu-nbd --connect=/dev/nbd0 work.img
-  sleep 2
+  export LIBGUESTFS_BACKEND=direct
   
-  MNT=$(mktemp -d)
-  sudo mount /dev/nbd0p1 "$MNT"
-  
-  sudo mount --bind /dev "$MNT/dev"
-  sudo mount --bind /proc "$MNT/proc"
-  sudo mount --bind /sys "$MNT/sys"
-  
-  sudo chroot "$MNT" /bin/bash -c "apt-get update && apt-get install -y docker.io"
-  
-  sudo mkdir -p "$MNT/etc/docker"
-  echo '{"data-root": "/mnt/data/docker"}' | sudo tee "$MNT/etc/docker/daemon.json" > /dev/null
-  
-  sudo tee "$MNT/etc/systemd/system/docker-data-mount.service" > /dev/null <<'UNIT'
-[Unit]
+  virt-customize -a work.img \
+    --install docker.io \
+    --mkdir /etc/docker \
+    --write '/etc/docker/daemon.json:{"data-root": "/mnt/data/docker"}' \
+    --write '/etc/systemd/system/docker-data-mount.service:[Unit]
 Description=Ensure Docker data dir
 Before=docker.service
 After=local-fs.target
@@ -53,17 +42,8 @@ ExecStart=/bin/mkdir -p /mnt/data/docker
 RemainAfterExit=yes
 
 [Install]
-WantedBy=multi-user.target
-UNIT
-
-  sudo chroot "$MNT" systemctl enable docker docker-data-mount.service
-  
-  sudo umount "$MNT/sys"
-  sudo umount "$MNT/proc"
-  sudo umount "$MNT/dev"
-  sudo umount "$MNT"
-  sudo qemu-nbd --disconnect /dev/nbd0
-  rmdir "$MNT"
+WantedBy=multi-user.target' \
+    --run-command 'systemctl enable docker docker-data-mount.service'
 
   mv work.img "$BASE_IMG"
   touch "${BASE_IMG_RESIZED}.customized"
