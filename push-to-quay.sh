@@ -4,7 +4,7 @@ set -euo pipefail
 # ── config ────────────────────────────────────────────────────────────────────
 QUAY_USER="${QUAY_USER:-}"
 QUAY_TOKEN="${QUAY_TOKEN:-}"
-IMAGE_NAME="quay.io/${QUAY_USER}/camoufox-containerdisk:latest"
+IMAGE_NAME="quay.io/${QUAY_USER}/camoufox-containerdisk:${IMAGE_TAG:-latest}"
 UBUNTU_IMG_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 BASE_IMG="base.img"
 BASE_IMG_RESIZED="base-resized.img"

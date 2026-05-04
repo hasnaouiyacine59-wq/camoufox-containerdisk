@@ -16,6 +16,7 @@ jobs:
         env:
           QUAY_USER: ${{ secrets.QUAY_USER }}
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+          IMAGE_TAG: dev
         run: |
           chmod +x push-to-quay.sh
           ./push-to-quay.sh
