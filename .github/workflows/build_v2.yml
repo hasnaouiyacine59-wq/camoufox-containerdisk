@@ -19,9 +19,10 @@ jobs:
           UBUNTU_IMG_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 
           curl -L -o "$BASE_IMG" "$UBUNTU_IMG_URL"
-          sudo apt-get install -y -qq qemu-utils
+          sudo apt-get install -y -qq qemu-utils libguestfs-tools
           qemu-img resize "$BASE_IMG" 15G
-          cp "$BASE_IMG" "$BASE_IMG_RESIZED"
+          # Expand the partition and filesystem to fill the new space
+          sudo virt-resize --expand /dev/sda1 "$BASE_IMG" "$BASE_IMG_RESIZED"
 
       - name: Customize image (docker.io + openvpn via painsec/virt-customize)
         run: |
@@ -30,6 +31,7 @@ jobs:
             -v "$PWD:/work" \
             --entrypoint virt-customize painsec/virt-customize \
             -a /work/work.img \
+            --run-command 'growpart /dev/sda 1 && resize2fs /dev/sda1 || true' \
             --run-command 'ln -sf /bin/true /usr/local/sbin/systemctl' \
             --run-command 'apt-get update' \
             --run-command 'apt-get install -y --fix-missing docker.io' \
