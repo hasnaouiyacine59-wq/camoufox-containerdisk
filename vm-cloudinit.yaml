@@ -1,0 +1,57 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: camoufox-vm
+spec:
+  running: true
+  template:
+    spec:
+      domain:
+        cpu:
+          cores: 2
+        memory:
+          guest: 4Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: rootdisk
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              package_update: true
+              packages:
+                - docker.io
+                - openvpn
+              runcmd:
+                # Move apt cache to big disk
+                - mkdir -p /mnt/data/apt/cache /mnt/data/docker
+                - echo 'Dir::Cache "/mnt/data/apt/cache";' > /etc/apt/apt.conf.d/99datacache
+                # Configure Docker to use big disk
+                - mkdir -p /etc/docker
+                - |
+                  cat > /etc/docker/daemon.json <<'EOF'
+                  {"data-root": "/mnt/data/docker"}
+                  EOF
+                - systemctl enable docker
+                - systemctl start docker
+  dataVolumeTemplates:
+    - metadata:
+        name: rootdisk
+      spec:
+        pvc:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 40Gi
+        source:
+          registry:
+            url: docker://quay.io/<QUAY_USER>/camoufox-containerdisk:cloudinit
