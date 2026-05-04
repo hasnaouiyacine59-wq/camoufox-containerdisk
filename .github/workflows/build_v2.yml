@@ -20,7 +20,7 @@ jobs:
 
           curl -L -o "$BASE_IMG" "$UBUNTU_IMG_URL"
           sudo apt-get install -y -qq qemu-utils
-          qemu-img resize "$BASE_IMG" 8G
+          qemu-img resize "$BASE_IMG" 12G
           cp "$BASE_IMG" "$BASE_IMG_RESIZED"
 
       - name: Customize image (docker.io + openvpn via painsec/virt-customize)
