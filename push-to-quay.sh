@@ -44,10 +44,12 @@ RUN printf '[Unit]\nDescription=Ensure Docker data dir on PVC\nBefore=docker.ser
 EOF
   docker build --progress=plain -f Dockerfile.rootfs -t containerdisk-rootfs .
 
-  # Export rootfs and pack into qcow2 using a privileged container
+  # Export rootfs on the host (Docker is available here), then pack into qcow2
+  docker export $(docker create containerdisk-rootfs) -o rootfs.tar
+
   docker run --rm --privileged -v "$PWD:/work" ubuntu:22.04 bash -c "
-    apt-get update -qq && apt-get install -y -qq qemu-utils e2fsprogs
-    docker export \$(docker create containerdisk-rootfs) -o /work/rootfs.tar
+    for i in 1 2 3; do apt-get update && break || sleep 10; done
+    apt-get install -y qemu-utils e2fsprogs
     truncate -s 8G /work/disk.img
     mkfs.ext4 -F /work/disk.img
     mkdir /mnt/disk
