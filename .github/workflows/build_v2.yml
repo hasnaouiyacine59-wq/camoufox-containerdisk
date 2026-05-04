@@ -51,7 +51,8 @@ jobs:
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
         run: |
           IMAGE_NAME="quay.io/${QUAY_USER}/camoufox-containerdisk:lab"
-          printf 'FROM scratch\nADD base.img /disk/\n' > Dockerfile.disk
+          qemu-img convert -f qcow2 -O raw base.img disk.img
+          printf 'FROM scratch\nADD disk.img /disk/\n' > Dockerfile.disk
           docker build -f Dockerfile.disk -t "$IMAGE_NAME" .
           echo "$QUAY_TOKEN" | docker login quay.io -u "$QUAY_USER" --password-stdin
           docker push "$IMAGE_NAME"
