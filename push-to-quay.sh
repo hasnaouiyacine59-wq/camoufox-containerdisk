@@ -42,7 +42,7 @@ RUN printf '[Unit]\nDescription=Ensure Docker data dir on PVC\nBefore=docker.ser
     ln -sf /lib/systemd/system/docker.service \
            /etc/systemd/system/multi-user.target.wants/docker.service || true
 EOF
-  docker build -f Dockerfile.rootfs -t containerdisk-rootfs .
+  docker build --progress=plain -f Dockerfile.rootfs -t containerdisk-rootfs .
 
   # Export rootfs and pack into qcow2 using a privileged container
   docker run --rm --privileged -v "$PWD:/work" ubuntu:22.04 bash -c "
@@ -61,6 +61,13 @@ EOF
 else
   echo "    skipped (already customized)"
 fi
+
+echo "==> Building containerdisk image..."
+cat > Dockerfile.disk <<'EOF'
+FROM scratch
+ADD base.img /disk/
+EOF
+docker build --progress=plain -f Dockerfile.disk -t "$IMAGE_NAME" .
 
 echo "==> Logging in to quay.io..."
 echo "$QUAY_TOKEN" | docker login quay.io -u "$QUAY_USER" --password-stdin
