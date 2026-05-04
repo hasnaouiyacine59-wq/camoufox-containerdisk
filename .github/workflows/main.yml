@@ -1,0 +1,21 @@
+name: Build & Push Containerdisk
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify KVM
+        run: ls /dev/kvm
+
+      - name: Build & push
+        env:
+          QUAY_USER: ${{ secrets.QUAY_USER }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        run: |
+          chmod +x push-to-quay.sh
+          ./push-to-quay.sh
