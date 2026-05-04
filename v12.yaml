@@ -8,17 +8,6 @@ parameters:
   - name: PASSWORD
     value: ubuntu123
 objects:
-- apiVersion: v1
-  kind: PersistentVolumeClaim
-  metadata:
-    name: ${NAME}-data
-  spec:
-    accessModes:
-      - ReadWriteOnce
-    storageClassName: gp3
-    resources:
-      requests:
-        storage: 40Gi
 - apiVersion: kubevirt.io/v1
   kind: VirtualMachine
   metadata:
@@ -51,9 +40,6 @@ objects:
             - name: rootdisk
               disk:
                 bus: virtio
-            - name: datadisk
-              disk:
-                bus: virtio
             - name: cloudinitdisk
               disk:
                 bus: virtio
@@ -67,9 +53,6 @@ objects:
         - name: rootdisk
           dataVolume:
             name: ${NAME}-rootdisk
-        - name: datadisk
-          persistentVolumeClaim:
-            claimName: ${NAME}-data
         - name: cloudinitdisk
           cloudInitNoCloud:
             userData: |
