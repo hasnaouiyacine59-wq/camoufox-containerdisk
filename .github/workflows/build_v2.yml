@@ -21,7 +21,8 @@ jobs:
           curl -L -o "$BASE_IMG" "$UBUNTU_IMG_URL"
           sudo apt-get install -y -qq qemu-utils libguestfs-tools
           qemu-img resize "$BASE_IMG" 15G
-          # Expand the partition and filesystem to fill the new space
+          # Create output file first, then expand partition into it
+          qemu-img create -f qcow2 "$BASE_IMG_RESIZED" 15G
           sudo virt-resize --expand /dev/sda1 "$BASE_IMG" "$BASE_IMG_RESIZED"
 
       - name: Customize image (docker.io + openvpn via painsec/virt-customize)
