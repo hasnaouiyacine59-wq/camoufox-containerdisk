@@ -1,0 +1,54 @@
+name: Build & Push Containerdisk v2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify KVM
+        run: ls /dev/kvm
+
+      - name: Download & resize base image
+        run: |
+          BASE_IMG=base.img
+          BASE_IMG_RESIZED=base-resized.img
+          UBUNTU_IMG_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+
+          curl -L -o "$BASE_IMG" "$UBUNTU_IMG_URL"
+          sudo apt-get install -y -qq qemu-utils
+          qemu-img resize "$BASE_IMG" 8G
+          cp "$BASE_IMG" "$BASE_IMG_RESIZED"
+
+      - name: Customize image (docker.io + openvpn via painsec/virt-customize)
+        run: |
+          cp base-resized.img work.img
+          docker run --rm --privileged --device /dev/kvm \
+            -v "$PWD:/work" \
+            --entrypoint virt-customize painsec/virt-customize \
+            -a /work/work.img \
+            --run-command 'ln -sf /bin/true /usr/local/sbin/systemctl' \
+            --run-command 'apt-get update' \
+            --install 'docker.io,openvpn' \
+            --run-command 'rm /usr/local/sbin/systemctl' \
+            --run-command 'systemctl enable docker' \
+            --mkdir '/etc/docker' \
+            --write '/etc/docker/daemon.json:{"data-root": "/mnt/data/docker"}' \
+            --run-command 'printf "[Unit]\nDescription=Ensure Docker data dir\nBefore=docker.service\nAfter=local-fs.target\n\n[Service]\nType=oneshot\nExecStart=/bin/mkdir -p /mnt/data/docker\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/docker-data-mount.service' \
+            --run-command 'systemctl enable docker-data-mount.service' \
+            --run-command 'apt-get clean && rm -rf /var/lib/apt/lists/*'
+          mv work.img base.img
+
+      - name: Build & push containerdisk
+        env:
+          QUAY_USER: ${{ secrets.QUAY_USER }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        run: |
+          IMAGE_NAME="quay.io/${QUAY_USER}/camoufox-containerdisk:latest"
+          printf 'FROM scratch\nADD base.img /disk/\n' > Dockerfile.disk
+          docker build -f Dockerfile.disk -t "$IMAGE_NAME" .
+          echo "$QUAY_TOKEN" | docker login quay.io -u "$QUAY_USER" --password-stdin
+          docker push "$IMAGE_NAME"
