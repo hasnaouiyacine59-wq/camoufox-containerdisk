@@ -9,50 +9,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify KVM
-        run: ls /dev/kvm
+      - name: Install tools
+        run: sudo apt-get install -y -qq qemu-utils
 
-      - name: Download & resize base image
+      - name: Build disk image
         run: |
-          BASE_IMG=base.img
-          BASE_IMG_RESIZED=base-resized.img
-          UBUNTU_IMG_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-
-          curl -L -o "$BASE_IMG" "$UBUNTU_IMG_URL"
-          sudo apt-get install -y -qq qemu-utils libguestfs-tools
-          qemu-img resize "$BASE_IMG" 15G
-          # Create output file first, then expand partition into it
-          qemu-img create -f qcow2 "$BASE_IMG_RESIZED" 15G
-          sudo virt-resize --expand /dev/sda1 "$BASE_IMG" "$BASE_IMG_RESIZED"
-
-      - name: Customize image (docker.io + openvpn via painsec/virt-customize)
-        run: |
-          cp base-resized.img work.img
-          docker run --rm --privileged --device /dev/kvm \
-            -v "$PWD:/work" \
-            --entrypoint virt-customize painsec/virt-customize \
-            -a /work/work.img \
-            --run-command 'growpart /dev/sda 1 && resize2fs /dev/sda1 || true' \
-            --run-command 'ln -sf /bin/true /usr/local/sbin/systemctl' \
-            --run-command 'apt-get update' \
-            --run-command 'apt-get install -y --fix-missing docker.io' \
-            --run-command 'rm /usr/local/sbin/systemctl' \
-            --run-command 'systemctl enable docker' \
-            --mkdir '/etc/docker' \
-            --write '/etc/docker/daemon.json:{"data-root": "/mnt/data/docker"}' \
-            --run-command 'printf "[Unit]\nDescription=Ensure Docker data dir\nBefore=docker.service\nAfter=local-fs.target\n\n[Service]\nType=oneshot\nExecStart=/bin/mkdir -p /mnt/data/docker\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n" > /etc/systemd/system/docker-data-mount.service' \
-            --run-command 'systemctl enable docker-data-mount.service' \
-            --run-command 'apt-get clean && rm -rf /var/lib/apt/lists/*'
-          mv work.img base.img
+          curl -L -o base.qcow2 https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+          qemu-img resize base.qcow2 20G
+          qemu-img convert -f qcow2 -O raw base.qcow2 disk.img
 
       - name: Build & push containerdisk
         env:
           QUAY_USER: ${{ secrets.QUAY_USER }}
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
         run: |
-          IMAGE_NAME="quay.io/${QUAY_USER}/camoufox-containerdisk:lab"
-          qemu-img convert -f qcow2 -O raw base.img disk.img
           printf 'FROM scratch\nADD disk.img /disk/\n' > Dockerfile.disk
-          docker build -f Dockerfile.disk -t "$IMAGE_NAME" .
           echo "$QUAY_TOKEN" | docker login quay.io -u "$QUAY_USER" --password-stdin
-          docker push "$IMAGE_NAME"
+          docker build -f Dockerfile.disk -t "quay.io/${QUAY_USER}/camoufox-containerdisk:lab" .
+          docker push "quay.io/${QUAY_USER}/camoufox-containerdisk:lab"
