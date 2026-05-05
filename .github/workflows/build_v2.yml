@@ -16,7 +16,20 @@ jobs:
         run: |
           curl -L -o base.qcow2 https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
           qemu-img resize base.qcow2 20G
-          qemu-img convert -f qcow2 -O raw base.qcow2 disk.img
+
+      - name: Install docker.io
+        run: |
+          docker run --rm --privileged \
+            -v "$PWD:/work" \
+            --entrypoint virt-customize painsec/virt-customize \
+            -a /work/base.qcow2 \
+            --run-command 'apt-get update' \
+            --run-command 'apt-get install -y docker.io' \
+            --run-command 'systemctl enable docker' \
+            --run-command 'apt-get clean && rm -rf /var/lib/apt/lists/*'
+
+      - name: Convert to raw
+        run: qemu-img convert -f qcow2 -O raw base.qcow2 disk.img
 
       - name: Build & push containerdisk
         env:
