@@ -23,6 +23,9 @@ jobs:
             -v "$PWD:/work" \
             --entrypoint virt-customize painsec/virt-customize \
             -a /work/base.qcow2 \
+            --run-command 'resize2fs /dev/sda1 || true' \
+            --run-command 'apt-get clean' \
+            --run-command 'rm -rf /var/cache/apt/archives/*' \
             --run-command 'apt-get update' \
             --run-command 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends containerd' \
             --run-command 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io' \
