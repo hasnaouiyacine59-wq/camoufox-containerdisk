@@ -10,12 +10,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install tools
-        run: sudo apt-get install -y -qq qemu-utils
+        run: sudo apt-get install -y -qq qemu-utils libguestfs-tools
 
       - name: Build disk image
         run: |
           curl -L -o base.qcow2 https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
-          qemu-img resize base.qcow2 20G
+          qemu-img create -f qcow2 resized.qcow2 30G
+          sudo virt-resize --expand /dev/sda1 base.qcow2 resized.qcow2
+          mv resized.qcow2 base.qcow2
 
       - name: Install docker.io
         run: |
@@ -23,12 +25,8 @@ jobs:
             -v "$PWD:/work" \
             --entrypoint virt-customize painsec/virt-customize \
             -a /work/base.qcow2 \
-            --run-command 'resize2fs /dev/sda1 || true' \
-            --run-command 'apt-get clean' \
-            --run-command 'rm -rf /var/cache/apt/archives/*' \
             --run-command 'apt-get update' \
-            --run-command 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends containerd' \
-            --run-command 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker.io' \
+            --run-command 'DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends containerd docker.io' \
             --run-command 'apt-get clean && rm -rf /var/lib/apt/lists/*'
 
       - name: Convert to raw
