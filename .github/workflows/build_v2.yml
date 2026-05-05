@@ -15,9 +15,7 @@ jobs:
       - name: Build disk image
         run: |
           curl -L -o base.qcow2 https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
-          qemu-img create -f qcow2 resized.qcow2 30G
-          sudo virt-resize --expand /dev/sda1 base.qcow2 resized.qcow2
-          mv resized.qcow2 base.qcow2
+          qemu-img resize base.qcow2 30G
 
       - name: Install docker.io
         run: |
