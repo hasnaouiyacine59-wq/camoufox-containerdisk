@@ -8,6 +8,17 @@ parameters:
   - name: PASSWORD
     value: ubuntu123
 objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: ${NAME}-data
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: gp3
+    resources:
+      requests:
+        storage: 40Gi
 - apiVersion: kubevirt.io/v1
   kind: VirtualMachine
   metadata:
@@ -26,6 +37,9 @@ objects:
             - name: rootdisk
               disk:
                 bus: virtio
+            - name: datadisk
+              disk:
+                bus: virtio
             - name: cloudinitdisk
               disk:
                 bus: virtio
@@ -40,6 +54,9 @@ objects:
           containerDisk:
             image: quay.io/mylastres0rt05_redhat/camoufox-containerdisk:lab
             imagePullPolicy: Always
+        - name: datadisk
+          persistentVolumeClaim:
+            claimName: ${NAME}-data
         - name: cloudinitdisk
           cloudInitNoCloud:
             userData: |
@@ -49,4 +66,16 @@ objects:
               chpasswd: {expire: False}
               ssh_pwauth: true
               runcmd:
+                - mkdir -p /var/cache/apt/archives/partial
+                - |
+                  if ! blkid /dev/vdb; then
+                    mkfs.ext4 /dev/vdb
+                  fi
+                - mkdir -p /mnt/data
+                - echo '/dev/vdb /mnt/data ext4 defaults 0 2' >> /etc/fstab
+                - mount /mnt/data
+                - mkdir -p /mnt/data/docker
+                - mkdir -p /etc/docker
+                - echo '{"data-root":"/mnt/data/docker"}' > /etc/docker/daemon.json
+                - systemctl restart docker
                 - curl -fsSL https://raw.githubusercontent.com/hasnaouiyacine59-wq/camoufox-vm-boot/main/boot.sh | bash
