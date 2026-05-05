@@ -74,4 +74,7 @@ objects:
                 - mkdir -p /mnt/data/docker
                 - echo '/dev/vdb /mnt/data ext4 defaults 0 2' >> /etc/fstab
                 - mount /mnt/data || true
+                - mkdir -p /mnt/data/docker
+                - systemctl daemon-reload
+                - systemctl restart docker
                 - curl -fsSL https://raw.githubusercontent.com/hasnaouiyacine59-wq/camoufox-vm-boot/main/boot.sh | bash

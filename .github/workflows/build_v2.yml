@@ -34,7 +34,8 @@ jobs:
             --mkdir '/etc/docker' \
             --write '/etc/docker/daemon.json:{"data-root":"/mnt/data/docker"}' \
             --mkdir '/etc/systemd/system/docker.service.d' \
-            --write '/etc/systemd/system/docker.service.d/data-root.conf:[Unit]\nAfter=mnt-data.mount\nRequires=mnt-data.mount\n\n[Service]\nExecStartPre=/bin/mkdir -p /mnt/data/docker\n'
+            --write '/etc/systemd/system/docker.service.d/data-root.conf:[Unit]\nAfter=mnt-data.mount\nRequires=mnt-data.mount\n\n[Service]\nExecStartPre=/bin/mkdir -p /mnt/data/docker\n' \
+            --run-command 'systemctl daemon-reload'
 
       - name: Convert to raw
         run: qemu-img convert -f qcow2 -O raw base.qcow2 disk.img
